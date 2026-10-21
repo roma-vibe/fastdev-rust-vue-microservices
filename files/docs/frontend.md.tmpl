@@ -1,0 +1,55 @@
+# Web app (web/)
+
+```text
+web/
+  index.html           the page title is APP_NAME (%APP_NAME%, filled by vite/env.ts)
+  vite.config.ts       reads the root .env, exposes only PUBLIC_ENV_KEYS, proxies /api to the edge
+  src/
+    main.ts            bootstrap: Pinia, i18n, router, theme
+    App.vue            picks the layout from route.meta.layout
+    config.ts          appName (APP_NAME from .env, injected at build time)
+    styles/main.css    Tailwind 4 theme: accent-* (orange) tokens, glass utilities, light/dark
+    app/               the shell: router (collects feature routes), extensions (feature guards and
+                       widgets), nav (sidebar from route meta), layouts, theme and locale switches, toasts
+    shared/            used by every feature
+      api/http.ts      the only fetch: same-origin cookies, ApiError, http.get/post/put/patch/delete
+{%- if features.auth %}
+      auth.ts          useAuthStore: user, signedIn, isAdmin, load/login/register/logout/update
+{%- endif %}
+      i18n.ts          vue-i18n; locale, setLocale; messages merged from shared + feature locales
+      theme.ts         themeMode light|dark|system, isDark, cycleTheme
+      toast.ts         toast.success/error/info
+      lib/format.ts    formatDateTime, formatRelative, formatMs, formatNumber, formatPercent
+      ui/              GlassCard, UiButton, UiInput, UiTextarea, UiSelect, UiSwitch, UiBadge, StatusDot,
+                       UiModal, ConfirmDialog, PageHeader, EmptyState, CopyButton, StatCard, UiSpinner
+    features/<name>/   one module per feature: home, notes{% if features.auth %}, auth, admin-users, profile, keys{% endif %}
+      routes.ts        export default [...] satisfies FeatureRoute[]  (meta: titleKey, layout, nav{% if features.auth %}, guestOnly{% endif %})
+      shell.ts         optional: export default {...} satisfies ShellExtension (guard, isAdmin, sidebarFooter, publicActions)
+      locales/en.json  {"<name>": {...}}  — the same keys in ru.json
+      pages/ components/ api.ts store.ts *.test.ts
+```
+
+## Rules
+
+- **Modules are independent.** A feature imports only `@/shared/**`, the types of `@/app/types.ts` and its own files — never another feature. What several features need moves to `shared/`.
+- **Layouts:** `app` (glass sidebar + top bar; the default{% if features.auth %}, signed-in users only{% endif %}), `public` (slim top bar{% if features.auth %}; sign-in pages{% endif %}, 404), `bare` (nothing around the page).
+- **Navigation:** add `meta.nav = { icon: <lucide component>, order }` to a route to show it in the sidebar.
+{%- if features.auth %}
+- **Administration:** a route with `meta.admin: true` and `meta.nav = { section: 'admin', … }` is guarded for admins and listed under "Administration" in the sidebar (`features/admin-users` is the example).
+{%- endif %}
+- **URLs:** `/` is the public landing page (`features/home`, `layout: 'public'`, replace its text with your own); the signed-in application lives under `/app` (`/app`, `/app/notes`, …), so give new pages a path starting with `/app/`.
+{%- if features.auth %}
+- **Access:** the auth feature's guard (`features/auth/guard.ts`) sends visitors of `app` pages to `/login?next=…`; `meta.guestOnly` pages send signed-in users home. Check `useAuthStore().isAdmin` for admin-only UI; the server checks it again.
+{%- endif %}
+- **Data flow:** page → feature store (Pinia setup store) → feature `api.ts` (typed wrappers over `http`) → `/api/*`. Stores expose `loading`/`error`; show action errors with `toast.error(errorMessage(e))`.
+- **Design:** surfaces are `glass` (cards), `glass-strong` (overlays), `glass-inset` (inputs); the accent colour is `accent-50…950` (orange) — never hardcode `orange-*`. Every element works in light and dark (`dark:` variants). Icons from `@lucide/vue`.
+- **Texts:** every visible string through `t('<feature>.<key>')` in English and Russian. Dates and numbers through `shared/lib/format.ts`.
+- **Name:** the app name is `appName` from `@/config.ts` (APP_NAME in `.env`); never write it into code.
+
+## Add a web module (example: `tasks`)
+
+1. `web/src/features/tasks/routes.ts` with the page route (`meta: { titleKey: 'tasks.title', nav: { icon: ListTodo, order: 20 } }`).
+2. `locales/en.json` and `locales/ru.json` with `{"tasks": {"title": …}}`.
+3. `api.ts` (types + `http` calls, matching `docs/api.md`), `store.ts` (state + actions), `store.test.ts`.
+4. `pages/TasksPage.vue` and `components/` using the shared UI kit.
+5. `npm run check`: the router, the sidebar and the translations pick the module up automatically.

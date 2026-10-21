@@ -1,0 +1,18 @@
+{
+  "notes": {
+    "title": "Notes",
+    "description": "The example feature: a Vue page, a Pinia store and the notes service with its own table.",
+    "new": "New note",
+    "newTitle": "New note",
+    "editTitle": "Edit note",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "emptyTitle": "No notes yet",
+    "emptyText": "Write the first one: it is stored in SQLite by the notes service.",
+    "deleteText": "Delete the note “{title}”?",
+    "fields": {
+      "title": "Title",
+      "body": "Text"
+    }
+  }
+}

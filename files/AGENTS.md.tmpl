@@ -1,0 +1,126 @@
+# {{ project.name }} — agent guide
+
+{%- if options.spec_md %}
+
+Read `SPEC.md` first: it is the product specification. Complete it with the owner before building features, and keep it current.
+{%- endif %}
+
+Then read `docs/architecture.md` (services, ownership, rules), `docs/api.md` (HTTP contract) and `docs/frontend.md` (web modules) before changing anything.
+
+## Stack
+
+- **Backend:** Rust 2024 workspace (Rust 1.89+). Microservices on **axum 0.8** + **tokio**, one binary per service in `services/`, shared code in `crates/`. **SQLite** through **sqlx 0.8** (runtime queries with `?` parameters, no compile-time query macros), migrations embedded in every service. reqwest (rustls) for service-to-service calls{% if features.auth %}, argon2 for passwords{% endif %}, AES-GCM for secrets at rest.
+- **Web:** **Vue 3** (`<script setup lang="ts">`), **Vite**, **Vue Router**, **Pinia**, **vue-i18n** (English and Russian), **Tailwind CSS 4** (liquid glass design, orange `accent-*` tokens, light/dark/system themes), lucide icons.
+- **Tooling:** npm workspace `web`, TypeScript strict, ESLint, Prettier, Vitest; cargo clippy (`-D warnings`), rustfmt, `cargo test` (`wiremock` for HTTP).
+
+## Project map
+
+```text
+.env / .env.example     the single configuration (APP_NAME, ports, DB_PATH, MASTER_KEY, …)
+services.json           service registry: names, packages, port keys, URL prefixes routed by the edge
+Cargo.toml              workspace: members crates/* and services/*, shared dependency versions
+crates/core/            app-core: config, registry, db + migrations, ApiError, Caller{% if features.auth %}, auth{% endif %}, crypto, settings, service::run
+services/edge/          public entry: proxies /api/* by services.json, serves web/dist, /api/health
+{%- if features.auth %}
+services/identity/      accounts: register/login/logout, /api/me, personal API keys, admin user list
+{%- endif %}
+services/notes/         example service: main.rs → routes.rs → model.rs (validation) → store.rs (SQL); tests.rs
+migrations/             SQL migrations, one block of numbers per owner service
+web/src/app/            shell: router, layouts, sidebar, theme/locale switches, toasts
+web/src/shared/         http client, i18n, theme, toasts, format helpers, UI kit{% if features.auth %}, auth store{% endif %}
+web/src/features/       one module per feature: home, notes{% if features.auth %}, auth, profile, keys{% endif %}
+scripts/                setup.ts (.env), dev.ts (all services + Vite), start.ts (release builds)
+docs/                   architecture.md, api.md, frontend.md
+{%- if choices.docker == "run" %}
+Dockerfile, docker-compose.yml, docker/   production image: every service binary + the web app
+{%- endif %}
+```
+
+## Architecture rules
+
+- **Request path:** browser → (Vite in dev) → **edge** → the service that owns the URL prefix (`services.json`, longest prefix wins). Services never call the browser-facing edge; they call each other directly with `ctx.config.service_url("<name>")`.
+- **Layers of a service:** `routes.rs` (extract the caller, parse, call logic, map to JSON) → logic/validation module (`model.rs`) → `store.rs` (SQL only) → SQLite. No SQL in handlers, no HTTP types in the store.
+- **Ownership:** only the owner service writes a table (named in a `-- [owner]` comment in its migration). Others may read it.
+- **Errors:** handlers return `ApiResult<Json<T>>`; errors are `ApiError` (`bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `unavailable`, `internal`) and reach the client as `{"error": {"code", "message"}}`. Database errors convert automatically.
+- **Users:** per-user data is scoped by `app_core::Caller` (`caller.user_id`) in every query.{% if features.auth %} Use `AuthUser` when the handler needs the user's details and `AdminUser` for admin-only routes.{% else %} There is no sign-in yet: every request is the local user `local`; adding accounts only changes `crates/core/src/caller.rs`.{% endif %}
+- **Responses:** camelCase JSON (`#[serde(rename_all = "camelCase")]`), times as Unix ms (`app_core::now_ms()`), ids from `app_core::new_id()` (UUID v7), lists as `{"items": [...]}`.
+- **Web:** page → feature store (Pinia) → feature `api.ts` → `@/shared/api/http.ts` (the only `fetch`). A feature imports only `@/shared/**` and its own files.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Builds the workspace, runs every service and Vite on http://localhost:{{ ports.WEB_PORT }}; rebuilds/restarts services on Rust, migration, `services.json` or `.env` changes. `-- --only notes,edge`, `-- --no-web` |
+| `npm run build` | Type-checks, builds `web/dist` and release binaries of every service |
+| `npm start` | Runs the release builds; the edge serves the app and the API on http://localhost:{{ ports.EDGE_PORT }} |
+| `npm test` | Vitest + `cargo test --workspace` |
+| `npm run check` | The quality gate: ESLint + clippy, Prettier + rustfmt, vue-tsc, all tests |
+| `npm run lint` / `npm run format` | Lint only / format everything (Prettier + `cargo fmt`) |
+| `cargo test -p app-<name>` | Tests of one crate or service |
+| `npm run setup` | Creates `.env` from `.env.example` with a fresh `MASTER_KEY` (`-- --port-base 9000` shifts every port) |
+{%- if choices.docker == "run" %}
+| `docker compose up --build` | Builds and runs the production container on http://localhost:{{ ports.EDGE_PORT }} |
+{%- endif %}
+
+## Configuration
+
+- `.env` is the single source of truth for every service, the web build and the scripts; `.env.example` lists every key with a safe default. Services read it only through `app_core::Config` (`crates/core/src/config.rs`); the web app gets only the keys in `PUBLIC_ENV_KEYS` of `web/vite.config.ts` (never secrets).
+- The app name is `APP_NAME`: the API returns it, the web app shows it (`appName` from `web/src/config.ts`) and puts it into the page title. Never hardcode the name.
+- Ports: `EDGE_PORT`, `WEB_PORT` and one `<NAME>_PORT` per service (`services.json` → `portEnv`).
+- `MASTER_KEY` encrypts secrets at rest (`ctx.crypto`). Never log it, never change it on a running installation.
+- Add a key: `.env.example` (with a comment) → a field in `Config` or `ctx.config.var("KEY")` → this file / `README.md` when it matters to humans.
+
+## How to
+
+### Add a feature end to end (example: `tasks`)
+
+1. Specify it in {% if options.spec_md %}`SPEC.md` and {% endif %}`docs/api.md` (endpoints, shapes, errors).
+2. Backend: a new service (`docs/architecture.md`, "How to add a service") or new routes in an existing owner service; migration `migrations/3000_tasks.sql`.
+3. Route tests in `services/tasks/src/tests.rs` (create, list, validation errors, other users' data invisible).
+4. Web module `web/src/features/tasks/` (`docs/frontend.md`), texts in `locales/en.json` and `locales/ru.json`, a store test.
+5. `npm run check`, then try it in `npm run dev`.
+
+### Add a page
+
+A route in the feature's `routes.ts` (path under `/app/`, `meta.titleKey`, optional `meta.nav` for the sidebar, `meta.layout` `public`/`bare` for pages outside the app shell), a component in `pages/`, the title key in both locale files.
+
+### Add an API route to an existing service
+
+Handler in the service's `routes.rs` (or a new module), validation in `model.rs`, SQL in `store.rs`; register it in `router()`; when the URL prefix is new, add it to the service's `routes` in `services.json`; a route test; `docs/api.md`.
+
+### Add a migration
+
+`migrations/<number>_<what>.sql` in the owner's number block, with `-- [owner]` above every table. Never edit an applied migration.
+
+## Testing
+
+- **Rust:** every service tests its routes in `src/tests.rs` (or `src/tests/`) with `Ctx::for_tests("<name>")` (in-memory database with every migration) and `tower::ServiceExt::oneshot`; sign requests in with `app_core::caller::test_authorization`. External HTTP is replaced by `wiremock`. Unit tests sit next to the code (`#[cfg(test)]`).
+- **Web:** Vitest next to the code (`features/<name>/*.test.ts`) or in `web/test/`; mock the feature `api.ts` with `vi.spyOn`.
+
+## Definition of done
+
+1. `npm run check` passes with **zero** errors and warnings.
+2. `npm run build` succeeds{% if choices.docker == "run" %}, and `docker compose build app` still builds when the Dockerfile, dependencies or services changed{% endif %}.
+3. New behaviour has tests (routes in Rust, stores/logic in the web).
+4. Docs match the code: `docs/api.md` for endpoints, `.env.example` for keys, `README.md`{% if options.spec_md %}, `SPEC.md`{% endif %} and this file when commands, structure or rules change.
+
+## Conventions
+
+- Rust: no `unwrap()`/`expect()` outside tests, no `unsafe`, clippy clean; `anyhow` in binaries and bootstrap, `ApiError` in handlers.
+- TypeScript: strict, no `any`, no non-null `!`; `type` imports; Vue components with `<script setup lang="ts">`.
+- Small files with one responsibility (about 300 lines at most); split before they grow.
+- Every UI text through i18n in English and Russian; code, comments, identifiers and docs in English.
+- Dependencies: add Rust ones to `[workspace.dependencies]` in the root `Cargo.toml` and use `dep.workspace = true`; keep both lockfiles committed.
+- Format with `npm run format` (or `cargo fmt -p <package>` and `npx prettier --write <paths>`).
+{%- if choices.docker == "run" %}
+
+## Docker
+
+- One production image runs every service binary (`docker/entrypoint.sh`) and serves the web app through the edge on `EDGE_PORT`. Development happens on the host (`npm run dev`).
+- **Data:** `DOCKER_DATA` in `.env` decides where the container keeps the SQLite database (`/app/data`): {% if choices.data == "local" %}**`./data`** — the project's `data/` folder is mounted (current setting); set `DOCKER_DATA=data` to use a Docker volume instead.{% else %}**`data`** — the named volume `{{ project.slug }}_data` (current setting); `docker compose down -v` deletes it. Set `DOCKER_DATA=./data` to keep the files in the project's `data/` folder instead.{% endif %}
+- Commands: `docker compose up --build`, `docker compose logs -f`, `docker compose down` (add `-v` to delete the volume).
+{%- endif %}
+
+---
+
+Bootstrapped from the fastDev skeleton `{{ skeleton.id }}` {{ skeleton.version }}.

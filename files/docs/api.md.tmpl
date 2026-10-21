@@ -1,0 +1,69 @@
+# HTTP API (contract)
+
+All services are reached through the **edge** (`EDGE_PORT`); in development Vite proxies `/api` to it. The owner of every URL prefix is in `services.json`. JSON uses **camelCase**; times are Unix **milliseconds**; ids are strings (UUID v7) unless noted.
+
+{% if features.auth -%}
+**Auth:** the web app signs in with an HttpOnly session cookie (`<APP_SLUG>-session`, set by login/register). Programs send `Authorization: Bearer <token>` (or `x-api-key: <token>`) with a personal API key (`sk-…`) or a session token. Extractors in `app_core::auth`: `AuthUser` (any signed-in user), `AdminUser` (role `admin`), and `app_core::Caller` (the user a request acts for).
+{%- else -%}
+**Auth:** the app has no sign-in yet; every request acts for one local user (`app_core::Caller`, id `local`). Per-user data is still scoped by `Caller::user_id`, so adding accounts later only changes the extractor.
+{%- endif %}
+**Errors (every service):** `{"error": {"code": "bad_request|unauthorized|forbidden|not_found|conflict|unavailable|internal", "message": "…"}}` with the matching status (`app_core::ApiError`).
+**Lists** return `{"items": [...]}`.
+
+Changing a shape here is a contract change: update this file in the same change as the code.
+
+---
+
+## Every service
+
+| Method | Path | Response |
+| --- | --- | --- |
+| GET | `/health` (service port, not routed by the edge) | `{ status: "ok", service, version }` |
+
+## edge (`/api/health`, everything else → web app)
+
+| Method | Path | Response |
+| --- | --- | --- |
+| GET | `/api/health` | `{ status: "ok" \| "degraded", appName, services: [{ name, ok, latencyMs, version }] }` |
+
+Unknown `/api/*` paths answer a JSON 404; a service that is down answers 503 `unavailable`. Other paths serve `WEB_DIST` (the built web app, `index.html` for client-side routes).
+{% if features.auth %}
+## identity (`/api/auth`, `/api/me`, `/api/keys`, `/api/admin/users`)
+
+```ts
+type User = { id: string; email: string; name: string; role: 'user' | 'admin'; createdAt: number };
+type ApiKey = { id: string; name: string; prefix: string; createdAt: number; lastUsedAt: number | null; revokedAt: number | null };
+```
+
+| Method | Path | Body → Response |
+| --- | --- | --- |
+| GET | `/api/auth/config` | → `{ registrationOpen: boolean, hasUsers: boolean }` (public) |
+| POST | `/api/auth/register` | `{email, password (≥ 8), name?}` → 201 `{user}` + session cookie. The first user becomes `admin`. 403 when registration is closed (setting `registration_open`, ignored for the first user). 409 email taken |
+| POST | `/api/auth/login` | `{email, password}` → `{user}` + session cookie; 401 wrong credentials, 403 disabled |
+| POST | `/api/auth/logout` | → 204 (deletes the current session and the cookie) |
+| GET | `/api/me` | → `User` |
+| PATCH | `/api/me` | `{name?}` → `User` |
+| POST | `/api/me/password` | `{currentPassword, newPassword}` → 204 (other sessions are signed out) |
+| GET | `/api/keys` | → `{items: ApiKey[]}` (own keys, newest first) |
+| POST | `/api/keys` | `{name}` → 201 `{key: ApiKey, secret: "sk-…"}` (the secret is shown once) |
+| DELETE | `/api/keys/{id}` | → 204 (sets `revokedAt`) |
+| GET | `/api/admin/users` | admin → `{items: (User & {disabled: boolean, keyCount: number})[]}` |
+| PATCH | `/api/admin/users/{id}` | admin `{role?, disabled?}` → the updated row (not for yourself; disabling signs the user out) |
+
+Passwords: argon2id. Session and key tokens are stored only as SHA-256 hashes (`app_core::crypto::hash_token`); sessions last 30 days and are extended while used.
+
+Settings (table `settings`, `app_core::settings`): `registration_open` (bool, default `true`).
+{% endif %}
+## notes (`/api/notes`) — example service
+
+```ts
+type Note = { id: string; title: string; body: string; pinned: boolean; createdAt: number; updatedAt: number };
+```
+
+| Method | Path | Body → Response |
+| --- | --- | --- |
+| GET | `/api/notes` | → `{items: Note[]}` (the caller's notes, pinned first, then the most recently updated) |
+| POST | `/api/notes` | `{title (1–200), body? (≤ 20000), pinned?}` → 201 `Note` |
+| GET | `/api/notes/{id}` | → `Note`; 404 when it is not the caller's |
+| PATCH | `/api/notes/{id}` | `{title?, body?, pinned?}` → `Note` |
+| DELETE | `/api/notes/{id}` | → 204 |

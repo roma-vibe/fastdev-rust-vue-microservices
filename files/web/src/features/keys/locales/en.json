@@ -1,0 +1,18 @@
+{
+  "keys": {
+    "title": "API keys",
+    "description": "Personal keys for scripts and other apps: send one as `Authorization: Bearer <key>`.",
+    "new": "New key",
+    "name": "Name",
+    "namePlaceholder": "e.g. CI or my laptop",
+    "secretOnce": "Copy the key now: it is shown only once.",
+    "created": "created {date}",
+    "lastUsed": "last used {when}",
+    "revoke": "Revoke",
+    "revoked": "Revoked",
+    "revokedToast": "Key revoked",
+    "revokeText": "Revoke the key \"{name}\"? Apps that use it lose access.",
+    "emptyTitle": "No keys yet",
+    "emptyText": "Create a key to call the API from scripts and other apps."
+  }
+}

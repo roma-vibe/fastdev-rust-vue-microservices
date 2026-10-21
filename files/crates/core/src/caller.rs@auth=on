@@ -1,0 +1,90 @@
+//! [`Caller`]: the user a request acts for. Handlers of per-user data take it as an argument and
+//! scope every query by `caller.user_id`, so users only ever see their own rows.
+
+use axum::{
+    extract::{FromRef, FromRequestParts},
+    http::request::Parts,
+};
+
+use crate::{auth::AuthUser, error::ApiError, service::Ctx};
+
+/// The signed-in user of a request (session cookie or API key); 401 when nobody is signed in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Caller {
+    pub user_id: String,
+}
+
+impl<S> FromRequestParts<S> for Caller
+where
+    Ctx: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let user = AuthUser::from_request_parts(parts, state).await?;
+        Ok(Self { user_id: user.id })
+    }
+}
+
+/// Test helper for route tests of any service: creates a user with a session and returns the
+/// `Authorization` header value that signs requests in as that user (`None` never happens here,
+/// the `Option` keeps tests independent of whether authentication is enabled).
+///
+/// # Errors
+/// On database errors.
+pub async fn test_authorization(ctx: &Ctx, email: &str) -> anyhow::Result<Option<String>> {
+    let id = crate::new_id();
+    sqlx::query(
+        "INSERT INTO users (id, email, name, password_hash, created_at, updated_at)
+         VALUES (?, ?, ?, '', 0, 0)",
+    )
+    .bind(&id)
+    .bind(email)
+    .bind(email)
+    .execute(&ctx.db)
+    .await?;
+    let token = crate::auth::create_session(&ctx.db, &id, None).await?;
+    Ok(Some(format!("Bearer {token}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{Router, body::Body, http::Request, routing::get};
+    use tower::ServiceExt as _;
+
+    use super::*;
+
+    async fn whoami(caller: Caller) -> String {
+        caller.user_id
+    }
+
+    #[tokio::test]
+    async fn requires_a_signed_in_user() {
+        let ctx = Ctx::for_tests("test").await.unwrap();
+        let app = Router::new()
+            .route("/", get(whoami))
+            .with_state(ctx.clone());
+        let anonymous = app
+            .clone()
+            .oneshot(Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(anonymous.status(), 401);
+
+        let auth = test_authorization(&ctx, "a@example.com")
+            .await
+            .unwrap()
+            .unwrap();
+        let signed_in = app
+            .oneshot(
+                Request::get("/")
+                    .header("authorization", auth)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(signed_in.status(), 200);
+    }
+}

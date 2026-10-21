@@ -1,0 +1,230 @@
+schema = 1
+id = "rust-vue-microservices"
+name = "Rust + Vue microservices"
+description = "A web app built from small Rust microservices (axum, tokio, SQLite through sqlx) behind an edge reverse proxy, with a modular Vue 3 single-page app (Vite, Pinia, Vue Router, vue-i18n in English and Russian, Tailwind CSS 4) in a liquid glass design with light and dark themes. A shared core crate gives every service config from .env, a service registry, migrations, JSON errors, encryption of secrets and a one-line bootstrap; a Notes service and web module show every layer, and optional accounts add registration, cookie sessions, personal API keys and route guards. Choose it for products that will grow into several backend services and feature modules, with a zero-warning quality gate (clippy, rustfmt, ESLint, Prettier, vue-tsc, cargo test, Vitest)."
+category = "web"
+languages = ["rust", "node"]
+tags = ["fullstack", "microservices", "rust", "axum", "sqlite", "vue", "spa", "tailwind", "i18n"]
+stack = [
+  "Rust 2024 (1.89+)",
+  "axum 0.8",
+  "tokio",
+  "sqlx 0.8 (SQLite)",
+  "Vue 3",
+  "Vite 8",
+  "Vue Router 5",
+  "Pinia 4",
+  "vue-i18n 11",
+  "Tailwind CSS 4",
+  "TypeScript 5.9",
+  "Vitest 5",
+  "Node.js 24+",
+]
+
+[requirements]
+cargo = ">=1.89"
+node = ">=24"
+npm = ">=10"
+
+[env]
+APP_NAME = "{{ project.name }}"
+APP_SLUG = "{{ project.slug }}"
+DB_PATH = "data/{{ project.slug }}.sqlite"
+
+[ports]
+EDGE_PORT = 8700
+IDENTITY_PORT = 8701
+NOTES_PORT = 8702
+WEB_PORT = 5173
+
+[secrets]
+MASTER_KEY = 32
+
+[[set]]
+file = "package.json"
+path = ["name"]
+value = "{{ project.slug }}"
+
+[[set]]
+file = "package-lock.json"
+path = ["name"]
+value = "{{ project.slug }}"
+
+[[set]]
+file = "package-lock.json"
+path = ["packages", "", "name"]
+value = "{{ project.slug }}"
+
+[[setup]]
+label = "Install dependencies"
+run = "npm install"
+
+[[setup]]
+label = "Download Rust crates"
+run = "cargo fetch --locked"
+
+# ---------------------------------------------------------------------------
+# Optional parts
+# ---------------------------------------------------------------------------
+
+[features.auth]
+label = "Accounts"
+description = "Identity service: registration (the first user is admin), cookie sessions, personal API keys, admin user list; sign-in, profile, API key and administration pages with route guards."
+default = true
+# Alternatives of shared files (crates/core/src/lib.rs, caller.rs, Cargo.lock) use `@auth=on|off`.
+files = [
+  "crates/core/src/auth",
+  "migrations/1000_identity.sql",
+  "services/identity",
+  "web/src/shared/auth.ts",
+  "web/src/features/auth",
+  "web/src/features/admin-users",
+  "web/src/features/profile",
+  "web/src/features/keys",
+]
+
+[commands.dev]
+label = "Dev"
+run = "npm run dev"
+long = true
+url = "http://localhost:${WEB_PORT}"
+primary = true
+description = "Builds and runs every service and the Vite dev server; Rust changes rebuild and restart the services."
+
+[commands.build]
+label = "Build"
+run = "npm run build"
+description = "Release builds of all services and the production web bundle."
+
+[commands.start]
+label = "Start"
+run = "npm start"
+long = true
+url = "http://localhost:${EDGE_PORT}"
+description = "Runs the release builds: the edge serves the web app and the API on one port."
+
+[commands.test]
+label = "Test"
+run = "npm test"
+
+[commands.check]
+label = "Check"
+run = "npm run check"
+description = "The quality gate: ESLint, Prettier, vue-tsc, Vitest, rustfmt, clippy and cargo test."
+
+[commands.lint]
+label = "Lint"
+run = "npm run lint"
+
+[commands.format]
+label = "Format"
+run = "npm run format"
+
+# ---------------------------------------------------------------------------
+# Docker: how the project uses containers.
+# ---------------------------------------------------------------------------
+
+[choices.docker]
+label = "Docker"
+description = "How the project uses Docker."
+default = "run"
+
+[choices.docker.options.none]
+label = "No Docker"
+description = "Everything runs on this Mac with Rust and Node.js."
+
+[choices.docker.options.run]
+label = "Docker to run the app"
+description = "Develop locally with Rust and Node.js; build and run the production container (all services and the web app) with Docker Compose."
+files = ["Dockerfile", "docker-compose.yml", ".dockerignore", "docker"]
+requirements = { docker = ">=24" }
+env = { COMPOSE_PROJECT_NAME = "{{ project.slug }}" }
+# Removes what verification (docker-build) or Docker up created: containers, volumes, local images.
+cleanup = "docker compose down --volumes --remove-orphans --rmi local"
+
+[choices.docker.options.run.commands.docker-up]
+label = "Docker up"
+run = "docker compose up --build"
+long = true
+url = "http://localhost:${EDGE_PORT}"
+
+[choices.docker.options.run.commands.docker-down]
+label = "Docker down"
+run = "docker compose down"
+
+[choices.docker.options.run.commands.docker-logs]
+label = "Docker logs"
+run = "docker compose logs -f"
+long = true
+
+[choices.docker.options.run.commands.docker-build]
+label = "Docker build"
+run = "docker compose build app"
+description = "Builds the production image without starting it."
+
+# Where containers keep the SQLite database (only when Docker is used).
+[choices.data]
+label = "Data storage"
+description = "Where the container keeps the SQLite database."
+default = "volume"
+when = { docker = ["run"] }
+
+[choices.data.options.volume]
+label = "Docker volume"
+description = "Managed by Docker, survives container rebuilds; `docker compose down -v` deletes it."
+env = { DOCKER_DATA = "data" }
+
+[choices.data.options.local]
+label = "Project folder"
+description = "The data/ folder of the project is mounted into the container; easy to inspect and back up."
+env = { DOCKER_DATA = "./data" }
+
+# docker-build exists only with Docker; the "none" variant skips it. Variants cannot turn features
+# off: verify the auth-off project with create_project (see AGENTS.md of this repository).
+[verify]
+commands = ["check", "build", "docker-build"]
+variants = [{ docker = "none" }, { docker = "run", data = "local" }]
+
+[preview]
+command = "dev"
+message = "All services and the Vite dev server are running with hot reload. Open the link: register the first account (it becomes the administrator), then try the Notes page, the profile and personal API keys. Switch the theme and the language in the header. Stop the preview when you are done."
+
+[updates]
+ecosystem = "npm"
+
+[translations.ru]
+"Rust + Vue microservices" = "Микросервисы Rust + Vue"
+"Accounts" = "Аккаунты"
+"Dev" = "Dev"
+"Build" = "Сборка"
+"Start" = "Старт"
+"Test" = "Тесты"
+"Check" = "Проверка"
+"Lint" = "Линтер"
+"Format" = "Форматирование"
+"Install dependencies" = "Установка зависимостей"
+"Download Rust crates" = "Загрузка Rust-крейтов"
+"Docker" = "Docker"
+"How the project uses Docker." = "Как проект использует Docker."
+"No Docker" = "Без Docker"
+"Docker to run the app" = "Docker для запуска"
+"Docker up" = "Docker: запуск"
+"Docker down" = "Docker: остановка"
+"Docker logs" = "Docker: логи"
+"Docker build" = "Docker: сборка"
+"Builds the production image without starting it." = "Собирает продакшен-образ, не запуская его."
+"Data storage" = "Хранение данных"
+"Docker volume" = "Том Docker"
+"Managed by Docker, survives container rebuilds; `docker compose down -v` deletes it." = "Управляется Docker и переживает пересборку контейнеров; `docker compose down -v` удаляет его."
+"Project folder" = "Папка проекта"
+"A web app built from small Rust microservices (axum, tokio, SQLite through sqlx) behind an edge reverse proxy, with a modular Vue 3 single-page app (Vite, Pinia, Vue Router, vue-i18n in English and Russian, Tailwind CSS 4) in a liquid glass design with light and dark themes. A shared core crate gives every service config from .env, a service registry, migrations, JSON errors, encryption of secrets and a one-line bootstrap; a Notes service and web module show every layer, and optional accounts add registration, cookie sessions, personal API keys and route guards. Choose it for products that will grow into several backend services and feature modules, with a zero-warning quality gate (clippy, rustfmt, ESLint, Prettier, vue-tsc, cargo test, Vitest)." = "Веб-приложение из небольших микросервисов на Rust (axum, tokio, SQLite через sqlx) за пограничным обратным прокси и модульное одностраничное приложение на Vue 3 (Vite, Pinia, Vue Router, vue-i18n на английском и русском, Tailwind CSS 4) в дизайне liquid glass со светлой и тёмной темами. Общий core-крейт даёт каждому сервису конфигурацию из .env, реестр сервисов, миграции, JSON-ошибки, шифрование секретов и запуск одной строкой; сервис и веб-модуль Notes показывают все слои, а опциональные аккаунты добавляют регистрацию, cookie-сессии, личные API-ключи и защиту маршрутов. Подходит для продуктов, которые вырастут в несколько бэкенд-сервисов и модулей интерфейса, с проверкой качества без предупреждений (clippy, rustfmt, ESLint, Prettier, vue-tsc, cargo test, Vitest)."
+"Identity service: registration (the first user is admin), cookie sessions, personal API keys, admin user list; sign-in, profile, API key and administration pages with route guards." = "Сервис identity: регистрация (первый пользователь — администратор), cookie-сессии, личные API-ключи, список пользователей для администратора; страницы входа, профиля и API-ключей с защитой маршрутов."
+"Everything runs on this Mac with Rust and Node.js." = "Всё работает на этом Mac с Rust и Node.js."
+"Develop locally with Rust and Node.js; build and run the production container (all services and the web app) with Docker Compose." = "Разработка локально с Rust и Node.js; продакшен-контейнер (все сервисы и веб-приложение) собирается и запускается через Docker Compose."
+"Where the container keeps the SQLite database." = "Где контейнер хранит базу SQLite."
+"The data/ folder of the project is mounted into the container; easy to inspect and back up." = "Папка data/ проекта монтируется в контейнер; её легко просматривать и копировать."
+"Builds and runs every service and the Vite dev server; Rust changes rebuild and restart the services." = "Собирает и запускает все сервисы и dev-сервер Vite; изменения в Rust пересобирают и перезапускают сервисы."
+"Release builds of all services and the production web bundle." = "Релизные сборки всех сервисов и продакшен-бандл веб-приложения."
+"Runs the release builds: the edge serves the web app and the API on one port." = "Запускает релизные сборки: edge отдаёт веб-приложение и API на одном порту."
+"The quality gate: ESLint, Prettier, vue-tsc, Vitest, rustfmt, clippy and cargo test." = "Проверка качества: ESLint, Prettier, vue-tsc, Vitest, rustfmt, clippy и cargo test."
+"All services and the Vite dev server are running with hot reload. Open the link: register the first account (it becomes the administrator), then try the Notes page, the profile and personal API keys. Switch the theme and the language in the header. Stop the preview when you are done." = "Все сервисы и dev-сервер Vite запущены с горячей перезагрузкой. Откройте ссылку: зарегистрируйте первый аккаунт (он станет администратором), затем попробуйте страницу заметок, профиль и личные API-ключи. Переключите тему и язык в шапке. Остановите превью, когда закончите."

@@ -1,0 +1,30 @@
+//! `app-core`: the platform library every service is built on.
+//!
+//! - [`config`]: the root `.env` read into a typed [`Config`] (the only place that reads env vars)
+//! - [`registry`]: `services.json`, the list of services, their ports and edge routes
+//! - [`db`]: the shared SQLite database (WAL) and the migrations in `/migrations`
+//! - [`error`]: [`ApiError`], the one JSON error shape of every `/api` endpoint
+//! - [`crypto`]: AES-256-GCM for secrets at rest, random tokens and token hashes
+//! - [`settings`]: typed access to the `settings` table
+//! - [`caller`]: [`Caller`], the user a request acts for (scopes per-user data)
+//! - [`service`]: [`Ctx`] and [`service::run`], the bootstrap shared by all services
+//!
+//! Services never read env vars, open the database or set up tracing themselves: they call
+//! [`service::run`] and get a ready [`Ctx`].
+
+pub mod caller;
+pub mod config;
+pub mod crypto;
+pub mod db;
+mod dotenv;
+pub mod error;
+pub mod registry;
+pub mod service;
+pub mod settings;
+pub mod util;
+
+pub use caller::Caller;
+pub use config::Config;
+pub use error::{ApiError, ApiResult, Json};
+pub use service::Ctx;
+pub use util::{new_id, now_ms};

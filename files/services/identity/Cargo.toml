@@ -1,0 +1,23 @@
+[package]
+name = "app-identity"
+description = "Registration, login, sessions, profile, personal API keys, admin user list"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+app-core.workspace = true
+argon2.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }
+
+[lints]
+workspace = true

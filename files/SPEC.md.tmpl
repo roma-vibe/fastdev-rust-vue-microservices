@@ -1,0 +1,78 @@
+# {{ project.name }} — Specification
+
+Status: draft · Created {{ project.created_at }}
+
+<!--
+Agents: this is the product specification and the source of truth for what to build.
+Complete it from the initial brief before implementing features: ask the owner about anything
+unclear, replace every guidance comment with real content, delete sections that do not apply,
+and keep the document current as decisions are made.
+-->
+
+## Initial brief
+
+{% if project.brief | trim %}{{ project.brief | trim }}{% else %}_No brief was given. Ask the owner what this project should do and record the answer here._{% endif %}
+
+## Goals
+
+<!-- 3–5 outcomes that define success. Why does this project exist, and how will we know it works? -->
+
+## Users
+
+<!-- Who uses it (roles or personas), what they need to get done, and who may access what.{% if features.auth %} Accounts exist already: `user` and `admin` (the first registered user).{% else %} The app has no sign-in yet: every request acts for one local user (`app_core::Caller`).{% endif %} -->
+
+## Scope
+
+### In scope
+
+<!-- Capabilities of the first release. -->
+
+### Out of scope
+
+<!-- What is explicitly excluded for now, to keep the first release small. -->
+
+## Features
+
+<!--
+One subsection per feature: a user story, testable acceptance criteria and edge cases. Example:
+
+### Notes
+- As a user I can write short notes and see them pinned first, then newest first.
+- Acceptance: a title (1–200 characters) is required; blank titles are rejected; deleting removes the note immediately.
+-->
+
+## Services
+
+<!--
+The backend is split into microservices (services.json). For each new service: its name, the URL
+prefixes it owns, the tables it owns (only the owner writes a table) and the services it calls.
+Existing: edge (public entry, proxy + web app){% if features.auth %}, identity (accounts, sessions, API keys){% endif %}, notes (example).
+-->
+
+## Data model
+
+<!-- Entities with fields (type, constraints, defaults), relations and the owning service. Each change becomes a SQL migration in migrations/. -->
+
+## API
+
+<!-- Endpoints under /api: method, path, request body, response, error cases; then copy them into docs/api.md. Errors use {"error": {"code", "message"}}. -->
+
+## UI
+
+<!-- Pages and routes (one web feature module each), navigation, the main flows, and empty / loading / error states. Light, dark and system themes; English and Russian. -->
+
+## Non-functional requirements
+
+<!-- Security (authentication, authorization, input validation, secrets), privacy, performance, accessibility, supported browsers, logging, backups of the SQLite database, deployment ({% if choices.docker != "none" %}Docker Compose: one container with every service{% else %}release binaries started by `npm start`{% endif %}). -->
+
+## Open questions
+
+<!-- Decisions that need the owner. Remove an item once it is answered and record the answer in the relevant section. -->
+
+- _None yet._
+
+## Milestones
+
+<!-- Small, shippable increments in order. Each one ends with `npm run check` and `npm run build` passing. -->
+
+1. _To be defined._

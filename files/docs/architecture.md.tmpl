@@ -1,0 +1,52 @@
+# Architecture
+
+The backend is a set of small Rust microservices that share one SQLite database; the **edge** is the only public entry and forwards each `/api/...` prefix to the service that owns it. The web app is a Vue single-page app built from independent feature modules.
+
+```text
+browser / programs ──► edge :{{ ports.EDGE_PORT }}
+  (Vite :{{ ports.WEB_PORT }} in dev       │
+   proxies /api)          ├─► {% if features.auth %}identity :{{ ports.IDENTITY_PORT }}   users, sessions, API keys
+                          ├─► {% endif %}notes    :{{ ports.NOTES_PORT }}   example: notes of the caller
+                          └─► web/dist         built web app (production)
+all services ──► one SQLite file (WAL), migrations in migrations/
+```
+
+## Modules
+
+| Path | Kind | Purpose |
+| --- | --- | --- |
+| `services.json` | registry | Service names, Cargo packages, port env keys (`<NAME>_PORT`) and the URL prefixes the edge routes. Single source for the core crate, the edge and `scripts/dev.ts`. |
+| `crates/core` (`app-core`) | library | Config from `.env` (`Config`), registry, SQLite pool + migrations, `ApiError`, {% if features.auth %}auth extractors (`AuthUser`, `AdminUser`), {% endif %}`Caller`, AES-GCM `Crypto`, settings, `service::run` bootstrap. |
+| `services/<name>` (`app-<name>`) | binary | One microservice each: `main.rs` calls `app_core::service::run(name, router)`; routes in `routes.rs`, logic in further modules, route tests in `tests.rs`. |
+| `migrations/` | SQL | Shared schema; every table has one **owner** service that writes it (the comment above the table). |
+| `web/` | SPA | Vue 3 + Tailwind 4 + vue-i18n; modules in `web/src/features/<name>` (`docs/frontend.md`). |
+| `scripts/` | Node | `setup.ts` (`.env`), `dev.ts` (all services + Vite, rebuild on change), `start.ts` (release builds). |
+
+## Rules
+
+- **Ownership.** A service writes only the tables it owns. It may read other tables; for anything else it calls the owner's HTTP API (`ctx.http` + `ctx.config.service_url("<name>")`).
+- **Shared code** goes to a crate in `crates/`, never copied between services. Keep `app-core` free of business logic.
+- **Schema changes** are a new numbered file in `migrations/` (never edit an applied one). Every service applies pending migrations on start (one sqlx migrator, same database, a lock file prevents races).
+- **Contract.** Every endpoint is documented in `docs/api.md`; change the doc with the code.
+- **Errors** are `ApiError` (`{"error": {"code", "message"}}`), handlers return `ApiResult<Json<T>>`. No `unwrap()` outside tests.
+- **Per-user data** is scoped by `app_core::Caller` (`caller.user_id`) in every query.
+- **Secrets** are stored only encrypted with `ctx.crypto` (`MASTER_KEY`), never returned in full or logged.
+- **Configuration** is read only by `crates/core/src/config.rs` (`Config`); a service-specific key is `ctx.config.var("KEY")`.
+
+## How to add a service
+
+1. Pick a name (e.g. `tasks`) and the next free port. Add an entry to `services.json`: `name`, `package` (`app-tasks`), `portEnv` (`TASKS_PORT`), `defaultPort`, `description`, `routes` (e.g. `["/api/tasks"]`).
+2. Add `TASKS_PORT=<port>` to `.env.example` and `.env` (and to `.env` of every copy of the project).
+3. Copy `services/notes` to `services/tasks`, rename the package in its `Cargo.toml` and the name passed to `app_core::service::run` in `main.rs`. The workspace picks up `services/*` automatically.
+4. Write the migration (next section), the model (validation), the store (SQL), the routes and route tests (`Ctx::for_tests("tasks")` + `tower::ServiceExt::oneshot`).
+5. Document the endpoints in `docs/api.md`. `npm run dev` now builds and starts the service, and the edge forwards `/api/tasks`.
+
+## How to add a migration
+
+1. Create `migrations/<number>_<what>.sql`. Numbers: `0001-0999` core, then one block of 1000 per service ({% if features.auth %}`1000_identity.sql`, {% endif %}`2000_notes.sql`); a new service takes the next free block (`3000_tasks.sql`, then `3001_tasks_due_date.sql`).
+2. Name the owner above every table: `-- [tasks] ...`. Times are Unix ms `INTEGER`, ids UUID v7 `TEXT`, booleans `INTEGER` 0/1.
+3. Restart the services (`npm run dev` does it on save); route tests run against a fresh in-memory database with every migration.
+
+## How to add a web module
+
+See `docs/frontend.md`: create `web/src/features/<name>/` with `routes.ts`, `locales/{en,ru}.json`, `api.ts`, `store.ts`, `pages/`, `components/`. The router, the sidebar and the translations pick it up automatically.

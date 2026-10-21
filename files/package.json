@@ -1,0 +1,44 @@
+{
+  "name": "app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup.ts",
+    "dev": "node scripts/dev.ts",
+    "build": "npm run typecheck && npm run build -w web && cargo build --release --workspace",
+    "build:web": "npm run build -w web",
+    "start": "node scripts/start.ts",
+    "test": "vitest run && cargo test --workspace",
+    "test:web": "vitest run",
+    "test:rust": "cargo test --workspace",
+    "lint": "eslint . --max-warnings 0 && cargo clippy --workspace --all-targets -- -D warnings",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write . && cargo fmt --all",
+    "format:check": "prettier --check . && cargo fmt --all --check",
+    "typecheck": "vue-tsc --build",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.11.1",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.2",
+    "vue-tsc": "^3.3.11"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "allowScripts": {
+    "fsevents": false
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "confirm": "Confirm",
+    "copy": "Copy",
+    "copied": "Copied",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "back": "Back",
+    "yes": "Yes",
+    "no": "No",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "empty": "Nothing here yet",
+    "error": "Something went wrong",
+    "areYouSure": "Are you sure?"
+  },
+  "theme": {
+    "light": "Light theme",
+    "dark": "Dark theme",
+    "system": "System theme"
+  },
+  "errors": {
+    "network": "Cannot reach the server",
+    "not_found": "Not found",
+    "notFoundTitle": "Page not found",
+    "notFoundText": "This page does not exist. Go back home."
+  },
+  "nav": {
+    "main": "Menu",
+    "admin": "Administration",
+    "showSidebar": "Show the sidebar",
+    "hideSidebar": "Hide the sidebar"
+  }
+}

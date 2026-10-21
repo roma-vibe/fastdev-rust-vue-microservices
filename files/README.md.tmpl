@@ -1,0 +1,95 @@
+# {{ project.name }}
+
+A web app built from small Rust microservices ([axum](https://github.com/tokio-rs/axum), SQLite) behind an edge reverse proxy, and a modular [Vue 3](https://vuejs.org) single-page app.
+
+## Requirements
+
+- Rust 1.89 or newer (`rustup`, https://rustup.rs)
+- Node.js 24 or newer, npm 10 or newer
+{%- if choices.docker == "run" %}
+- Docker 24 or newer with Docker Compose (only for running in a container)
+{%- endif %}
+
+## Quick start
+
+```sh
+npm install
+npm run setup     # creates .env with a fresh MASTER_KEY (keeps an existing .env)
+npm run dev
+```
+
+Open http://localhost:{{ ports.WEB_PORT }}.{% if features.auth %} Register the first account: it becomes the administrator.{% endif %} The Vite dev server proxies `/api` to the edge on http://localhost:{{ ports.EDGE_PORT }}, which routes each request to the service that owns its URL prefix (`services.json`).
+
+Production-style run on a single port:
+
+```sh
+npm run build
+npm start         # edge: API + built web app on http://localhost:{{ ports.EDGE_PORT }}
+```
+{%- if choices.docker == "run" %}
+
+In Docker (one container runs every service and serves the web app):
+
+```sh
+docker compose up --build   # http://localhost:{{ ports.EDGE_PORT }}
+```
+{%- endif %}
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Builds the Rust workspace, runs every service and Vite (hot reload); Rust changes rebuild and restart the services. `-- --only notes,edge`, `-- --no-web` |
+| `npm run build` | Type-check, build the web app into `web/dist` and release binaries of every service |
+| `npm start` | Run the release builds; the edge serves the web app and the API on `EDGE_PORT` |
+| `npm test` | Vitest (web) and `cargo test --workspace` |
+| `npm run check` | ESLint + clippy, Prettier + rustfmt, vue-tsc and all tests — the quality gate |
+| `npm run lint` / `npm run format` | Linters only / format everything |
+| `npm run setup` | Create `.env` with a fresh `MASTER_KEY`; `-- --port-base 9000` moves every port |
+
+## Configuration
+
+All settings live in `.env` in the project root, read by every service, the web build and the scripts. It is git-ignored; `.env.example` documents every key and is committed.
+
+| Key | Value | Description |
+| --- | --- | --- |
+| `APP_NAME` | `{{ env.APP_NAME }}` | App name shown in the UI and returned by the API |
+| `APP_SLUG` | `{{ env.APP_SLUG }}` | Machine-friendly name ({% if features.auth %}session cookie, {% endif %}logs) |
+| `DB_PATH` | `{{ env.DB_PATH }}` | SQLite file shared by the services, relative to the project root |
+| `MASTER_KEY` | generated | Encrypts secrets at rest; keep it secret and never change it on a running installation |
+| `EDGE_PORT` | `{{ ports.EDGE_PORT }}` | Public entry: API proxy and the built web app |
+{%- if features.auth %}
+| `IDENTITY_PORT` | `{{ ports.IDENTITY_PORT }}` | Identity service (accounts, sessions, API keys) |
+{%- endif %}
+| `NOTES_PORT` | `{{ ports.NOTES_PORT }}` | Notes service (the example) |
+| `WEB_PORT` | `{{ ports.WEB_PORT }}` | Vite dev server |
+| `BIND_HOST` | `127.0.0.1` | Interface the services listen on |
+| `PUBLIC_URL` | empty | URL users open{% if features.auth %}; `https://` makes cookies secure{% endif %} |
+| `LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug`, `trace` or a `RUST_LOG` filter |
+{%- if choices.docker == "run" %}
+| `COMPOSE_PROJECT_NAME` | `{{ project.slug }}` | Docker Compose project name |
+| `DOCKER_DATA` | `{{ env.DOCKER_DATA }}` | Where the container keeps the database: `data` (Docker volume) or `./data` (project folder) |
+{%- endif %}
+
+## Project structure
+
+```text
+crates/core/     shared library: config, service registry, database, errors, crypto, bootstrap
+services/edge/   reverse proxy by services.json + the built web app
+{%- if features.auth %}
+services/identity/  accounts, sessions, personal API keys
+{%- endif %}
+services/notes/  example service (CRUD over its own table)
+migrations/      SQL migrations, applied by every service at start
+web/             Vue 3 + Vite app: app shell, shared UI kit, feature modules in src/features/
+scripts/         setup, dev runner, production runner
+docs/            architecture, HTTP API, frontend modules
+```
+
+Read `docs/architecture.md` to add a service, a migration or a web module.
+{%- if features.auth %}
+
+## Accounts
+
+The first registered user becomes the administrator. Users sign in with an email and password (a session cookie) or call the API with a personal key: `Authorization: Bearer <key>` (create keys on the API keys page). Administrators can list all users with `GET /api/admin/users` (see `docs/api.md`).
+{%- endif %}

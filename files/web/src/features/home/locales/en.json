@@ -1,0 +1,33 @@
+{
+  "home": {
+    "title": "Dashboard",
+    "welcome": "Welcome to {name}",
+    "intro": "Every backend service runs on its own port behind the edge; the web app talks to all of them through /api.",
+    "openNotes": "Open notes",
+    "services": "Services",
+    "down": "unavailable",
+    "status": {
+      "ok": "All running",
+      "degraded": "Some are down"
+    },
+    "landing": {
+      "title": "Home",
+      "tagline": "A simple skeleton for a web app on Rust microservices and Vue.",
+      "open": "Open the app",
+      "what": {
+        "title": "What it is",
+        "text": "A minimal starting point, not a finished product. A few small Rust services run behind one entry point, a Vue web app talks to them through /api, and each service keeps its data in SQLite. There is no business logic here: only the structure, the design and the tooling to build on."
+      },
+      "inside": {
+        "title": "What is inside",
+        "items": [
+          "edge: the single public entry point that proxies /api and serves the web app",
+          "core: shared configuration, database, migrations, errors and health checks",
+          "notes: a small example service with its own web module, tests and table",
+          "Liquid glass design with light and dark themes, in Russian and English",
+          "Feature modules on both sides: add a folder and it is picked up automatically"
+        ]
+      }
+    }
+  }
+}

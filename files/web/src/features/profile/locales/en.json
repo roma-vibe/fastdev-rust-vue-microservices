@@ -1,0 +1,17 @@
+{
+  "profile": {
+    "title": "Profile",
+    "description": "Your account and password.",
+    "account": "Account",
+    "roleAdmin": "Administrator",
+    "roleUser": "User",
+    "email": "Email",
+    "name": "Name",
+    "password": "Password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "passwordHint": "At least 8 characters. Other devices will be signed out.",
+    "changePassword": "Change password",
+    "passwordChanged": "Password changed"
+  }
+}

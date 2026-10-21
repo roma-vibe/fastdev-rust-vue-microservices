@@ -1,0 +1,31 @@
+{
+  "$comment": "Service registry: the single source for service names, ports and the URL prefixes the edge routes to them. Read by crates/core (ports, internal URLs), services/edge (routing) and scripts/dev.ts (what to run). Longest prefix wins in the edge.",
+  "services": [
+    {
+      "name": "edge",
+      "package": "app-edge",
+      "portEnv": "EDGE_PORT",
+      "defaultPort": 8700,
+      "description": "Public entry: reverse proxy to the services below and the built SPA (web/dist)",
+      "routes": []
+    },
+{%- if features.auth %}
+    {
+      "name": "identity",
+      "package": "app-identity",
+      "portEnv": "IDENTITY_PORT",
+      "defaultPort": 8701,
+      "description": "Registration, login, sessions, profile, personal API keys, admin user list",
+      "routes": ["/api/auth", "/api/me", "/api/keys", "/api/admin/users"]
+    },
+{%- endif %}
+    {
+      "name": "notes",
+      "package": "app-notes",
+      "portEnv": "NOTES_PORT",
+      "defaultPort": 8702,
+      "description": "Example service: notes of the current user",
+      "routes": ["/api/notes"]
+    }
+  ]
+}

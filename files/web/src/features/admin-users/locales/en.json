@@ -1,0 +1,15 @@
+{
+  "adminUsers": {
+    "title": "Users",
+    "description": "Everyone with an account. An example administration page: only admins see it.",
+    "user": "User",
+    "role": "Role",
+    "keys": "API keys",
+    "registered": "Registered",
+    "disabled": "disabled",
+    "roles": {
+      "admin": "Admin",
+      "user": "User"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+# Dependencies and build outputs
+node_modules/
+target/
+web/dist/
+coverage/
+*.tsbuildinfo
+
+# Local configuration and data (ship .env.example, never .env)
+.env
+*/.env
+data/*
+!data/.gitkeep
+*.sqlite
+*.sqlite-*
+*.migrate.lock
+
+# Editors and OS
+.DS_Store
+.idea/
+*.log

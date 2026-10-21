@@ -1,0 +1,167 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* Dark mode follows the `dark` class on <html> (shared/theme.ts: light | dark | system). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Accent: orange. Use `accent-*` (not orange-*) so the accent can be changed in one place. */
+  --color-accent-50: oklch(0.98 0.016 73);
+  --color-accent-100: oklch(0.954 0.038 75);
+  --color-accent-200: oklch(0.901 0.076 70);
+  --color-accent-300: oklch(0.837 0.128 66);
+  --color-accent-400: oklch(0.75 0.183 55);
+  --color-accent-500: oklch(0.705 0.213 47.6);
+  --color-accent-600: oklch(0.646 0.222 41.1);
+  --color-accent-700: oklch(0.553 0.195 38.4);
+  --color-accent-800: oklch(0.47 0.157 37.3);
+  --color-accent-900: oklch(0.408 0.123 38.2);
+  --color-accent-950: oklch(0.266 0.079 36.3);
+
+  --radius-glass: 1.25rem;
+}
+
+@layer base {
+  html {
+    @apply bg-stone-100 text-stone-900 antialiased dark:bg-[#0c0a09] dark:text-stone-100;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  ::selection {
+    @apply bg-accent-500/30;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent-500;
+  }
+}
+
+/*
+ * Liquid glass. Surfaces are translucent, blurred and saturated with a light rim and an inner
+ * highlight; the coloured backdrop (`.glass-backdrop`, AppBackdrop.vue) shows through.
+ */
+@utility glass {
+  background: color-mix(in oklab, white 55%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid color-mix(in oklab, white 70%, transparent);
+  border-radius: var(--radius-glass);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklab, white 85%, transparent),
+    inset 0 -1px 0 0 color-mix(in oklab, white 25%, transparent),
+    0 8px 32px -8px rgb(28 25 23 / 0.18);
+  &:where(.dark, .dark *) {
+    background: color-mix(in oklab, white 6%, transparent);
+    border-color: color-mix(in oklab, white 12%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 14%, transparent),
+      inset 0 -1px 0 0 color-mix(in oklab, white 4%, transparent),
+      0 8px 32px -8px rgb(0 0 0 / 0.6);
+  }
+}
+
+/* Stronger glass for overlays (modals, menus, toasts). */
+@utility glass-strong {
+  background: color-mix(in oklab, white 78%, transparent);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid color-mix(in oklab, white 80%, transparent);
+  border-radius: var(--radius-glass);
+  box-shadow:
+    inset 0 1px 0 0 white,
+    0 24px 64px -12px rgb(28 25 23 / 0.35);
+  &:where(.dark, .dark *) {
+    background: color-mix(in oklab, #1c1917 82%, transparent);
+    border-color: color-mix(in oklab, white 14%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 12%, transparent),
+      0 24px 64px -12px rgb(0 0 0 / 0.8);
+  }
+}
+
+/* Subtle glass for inputs and nested surfaces. */
+@utility glass-inset {
+  background: color-mix(in oklab, white 45%, transparent);
+  border: 1px solid color-mix(in oklab, #78716c 22%, transparent);
+  box-shadow: inset 0 1px 2px 0 rgb(28 25 23 / 0.06);
+  &:where(.dark, .dark *) {
+    background: color-mix(in oklab, black 25%, transparent);
+    border-color: color-mix(in oklab, white 10%, transparent);
+    box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  }
+}
+
+/*
+ * Modal transition (UiModal.vue). The wrapper stays fully opaque: an `opacity` below 1 on an
+ * ancestor disables the backdrop blur of its children until the very end of the fade. Instead the
+ * backdrop animates its own blur and tint, and the panel fades and slides.
+ */
+.modal-backdrop {
+  background: rgb(12 10 9 / 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.modal-enter-active .modal-backdrop,
+.modal-leave-active .modal-backdrop {
+  transition:
+    background-color 240ms ease,
+    backdrop-filter 240ms ease,
+    -webkit-backdrop-filter 240ms ease;
+}
+.modal-enter-from .modal-backdrop,
+.modal-leave-to .modal-backdrop {
+  background: rgb(12 10 9 / 0);
+  backdrop-filter: blur(0);
+  -webkit-backdrop-filter: blur(0);
+}
+.modal-enter-active .modal-panel {
+  transition:
+    opacity 240ms ease,
+    transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-leave-active .modal-panel {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+.modal-enter-from .modal-panel,
+.modal-leave-to .modal-panel {
+  opacity: 0;
+  transform: translateY(12px) scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-enter-active .modal-backdrop,
+  .modal-leave-active .modal-backdrop,
+  .modal-enter-active .modal-panel,
+  .modal-leave-active .modal-panel {
+    transition-duration: 1ms;
+  }
+}
+
+/* Accent text gradient for headings and numbers. */
+@utility text-accent-gradient {
+  background: linear-gradient(120deg, var(--color-accent-400), var(--color-accent-600));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Page change: a quick cross-fade (app/pageTransition.ts). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}

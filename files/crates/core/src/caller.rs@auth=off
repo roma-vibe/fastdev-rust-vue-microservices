@@ -1,0 +1,59 @@
+//! [`Caller`]: the user a request acts for. Handlers of per-user data take it as an argument and
+//! scope every query by `caller.user_id`. The app has no sign-in: every request acts for the one
+//! local user [`LOCAL_USER_ID`]. Adding authentication later only changes this extractor.
+
+use std::convert::Infallible;
+
+use axum::{extract::FromRequestParts, http::request::Parts};
+
+use crate::service::Ctx;
+
+/// Owner id of all data while the app has a single local user.
+pub const LOCAL_USER_ID: &str = "local";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Caller {
+    pub user_id: String,
+}
+
+impl<S: Send + Sync> FromRequestParts<S> for Caller {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(_parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self {
+            user_id: LOCAL_USER_ID.to_owned(),
+        })
+    }
+}
+
+/// Test helper for route tests of any service: the `Authorization` header value that signs a
+/// request in. Without authentication there is nothing to sign in, so it is always `None`.
+///
+/// # Errors
+/// Never; the signature matches the variant with authentication.
+#[allow(clippy::unused_async)]
+pub async fn test_authorization(_ctx: &Ctx, _email: &str) -> anyhow::Result<Option<String>> {
+    Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{Router, body::Body, http::Request, routing::get};
+    use tower::ServiceExt as _;
+
+    use super::*;
+
+    async fn whoami(caller: Caller) -> String {
+        caller.user_id
+    }
+
+    #[tokio::test]
+    async fn every_request_is_the_local_user() {
+        let app = Router::new().route("/", get(whoami));
+        let response = app
+            .oneshot(Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+    }
+}

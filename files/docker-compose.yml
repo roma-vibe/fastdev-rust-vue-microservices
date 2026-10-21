@@ -1,0 +1,25 @@
+# Production container: every service and the web app; the edge serves both on EDGE_PORT.
+# Values come from .env (Compose reads it for ${...} and passes it to the app with env_file).
+services:
+  app:
+    build:
+      context: .
+      args:
+        APP_NAME: ${APP_NAME:?Set APP_NAME in .env}
+    image: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME in .env}-app
+    env_file: .env
+    environment:
+      APP_ROOT: /app
+      BIND_HOST: 0.0.0.0
+      DB_PATH: /app/data/app.sqlite
+      WEB_DIST: /app/web/dist
+      PUBLIC_URL: http://localhost:${EDGE_PORT:-8700}
+    ports:
+      - '${EDGE_PORT:-8700}:${EDGE_PORT:-8700}'
+    volumes:
+      # DOCKER_DATA: `data` (named volume) or `./data` (the project folder).
+      - ${DOCKER_DATA:-data}:/app/data
+    restart: unless-stopped
+
+volumes:
+  data:

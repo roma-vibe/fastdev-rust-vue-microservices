@@ -1,0 +1,17 @@
+{
+  "profile": {
+    "title": "Профиль",
+    "description": "Ваш аккаунт и пароль.",
+    "account": "Аккаунт",
+    "roleAdmin": "Администратор",
+    "roleUser": "Пользователь",
+    "email": "Эл. почта",
+    "name": "Имя",
+    "password": "Пароль",
+    "currentPassword": "Текущий пароль",
+    "newPassword": "Новый пароль",
+    "passwordHint": "Не меньше 8 символов. На других устройствах потребуется войти заново.",
+    "changePassword": "Сменить пароль",
+    "passwordChanged": "Пароль изменён"
+  }
+}
